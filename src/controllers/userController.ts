@@ -3,6 +3,7 @@ import User from '../models/User';
 import Event from '../models/Event';
 import { AuthRequest } from '../middleware/authMiddleware';
 import { sendApprovalEmail } from '../services/emailService';
+import bcrypt from 'bcryptjs';
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
@@ -33,23 +34,24 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Update only the fields that were provided
-    if (req.body.qualifications !== undefined) {
-      // Filter out invalid items just to be safe
-      const validQualifications = ['sportsactivity', 'yogatraining', 'volunteering', 'mentorship training'];
-      const incomingQuals = (req.body.qualifications as string[]) || [];
-      user.qualifications = incomingQuals.filter((q) => validQualifications.includes(q));
+    if (req.body.roleType !== undefined) {
+      user.roleType = req.body.roleType;
     }
     
-    if (req.body.hoursPerWeek !== undefined) {
-      user.hoursPerWeek = Number(req.body.hoursPerWeek);
+    if (req.body.skills !== undefined) {
+      const validSkills = ['Drama', 'ASC', 'Youth Work'];
+      const incomingSkills = (req.body.skills as string[]) || [];
+      user.skills = incomingSkills.filter((s) => validSkills.includes(s));
     }
 
-    if (req.body.availableFrom !== undefined) {
-      user.availableFrom = req.body.availableFrom;
+    if (req.body.specificAvailability !== undefined) {
+      if (Array.isArray(req.body.specificAvailability)) {
+        user.specificAvailability = req.body.specificAvailability;
+      }
     }
 
-    if (req.body.availableTo !== undefined) {
-      user.availableTo = req.body.availableTo;
+    if (req.body.holidayDates !== undefined) {
+      user.holidayDates = req.body.holidayDates;
     }
 
     if (req.body.willingToVolunteer !== undefined) {
@@ -69,8 +71,10 @@ export const updateProfile = async (req: AuthRequest, res: Response): Promise<vo
       lastName: updatedUser.lastName,
       phoneNumber: updatedUser.phoneNumber,
       gender: updatedUser.gender,
-      qualifications: updatedUser.qualifications,
-      hoursPerWeek: updatedUser.hoursPerWeek,
+      roleType: updatedUser.roleType,
+      skills: updatedUser.skills,
+      specificAvailability: updatedUser.specificAvailability,
+      holidayDates: updatedUser.holidayDates,
       status: updatedUser.status,
       willingToVolunteer: updatedUser.willingToVolunteer,
     });
@@ -140,9 +144,10 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
           eventDetails.map((e: any) => ({
             eventName: e.eventName,
             location: e.location,
-            hours: e.hours,
-            startDate: e.startDate,
-            endDate: e.endDate,
+            sessionType: e.sessionType,
+            date: e.date,
+            startTime: e.startTime,
+            endTime: e.endTime,
           }))
         );
       } catch (emailErr) {
@@ -154,5 +159,135 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
     res.status(200).json(updatedUser);
   } catch (error: any) {
     res.status(500).json({ message: 'Failed to update user status' });
+  }
+};
+
+// @desc    Get user by ID
+// @route   GET /api/users/:id
+// @access  Private/Admin
+export const getUserById = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (user) {
+      res.status(200).json(user);
+    } else {
+      res.status(404).json({ message: 'User not found' });
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: 'Failed to retrieve user profile' });
+  }
+};
+
+// @desc    Update user specific profile by admin
+// @route   PUT /api/users/:id/profile
+// @access  Private/Admin
+export const updateUserByIdProfile = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      res.status(404).json({ message: 'User not found' });
+      return;
+    }
+
+    if (req.body.firstName !== undefined) user.firstName = req.body.firstName;
+    if (req.body.lastName !== undefined) user.lastName = req.body.lastName;
+    if (req.body.emailId !== undefined) user.emailId = req.body.emailId;
+    if (req.body.phoneNumber !== undefined) user.phoneNumber = req.body.phoneNumber;
+    if (req.body.gender !== undefined) user.gender = req.body.gender;
+
+    if (req.body.roleType !== undefined) {
+      user.roleType = req.body.roleType;
+    }
+    
+    if (req.body.skills !== undefined) {
+      const validSkills = ['Drama', 'ASC', 'Youth Work'];
+      const incomingSkills = (req.body.skills as string[]) || [];
+      user.skills = incomingSkills.filter((s) => validSkills.includes(s));
+    }
+
+    if (req.body.specificAvailability !== undefined) {
+      if (Array.isArray(req.body.specificAvailability)) {
+        user.specificAvailability = req.body.specificAvailability;
+      }
+    }
+
+    if (req.body.holidayDates !== undefined) {
+      user.holidayDates = req.body.holidayDates;
+    }
+
+    if (req.body.willingToVolunteer !== undefined) {
+      user.willingToVolunteer = Boolean(req.body.willingToVolunteer);
+    }
+
+    if (req.body.employmentType !== undefined) {
+      user.employmentType = req.body.employmentType === '' ? undefined : req.body.employmentType;
+    }
+    if (req.body.fixedSalary !== undefined) {
+      user.fixedSalary = req.body.fixedSalary === '' ? undefined : req.body.fixedSalary;
+    }
+    if (req.body.hourlyRate !== undefined) {
+      user.hourlyRate = req.body.hourlyRate === '' ? undefined : req.body.hourlyRate;
+    }
+
+    const updatedUser = await user.save();
+    res.status(200).json(updatedUser);
+  } catch (error: any) {
+    res.status(400).json({ message: error.message || 'Invalid profile data' });
+  }
+};
+
+// @desc    Create a brand new staff user by admin
+// @route   POST /api/users
+// @access  Private/Admin
+export const createStaffUser = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { 
+      firstName, lastName, emailId, password, phoneNumber, gender,
+      roleType, skills, specificAvailability, holidayDates, willingToVolunteer,
+      employmentType, fixedSalary, hourlyRate
+    } = req.body;
+
+    const userExists = await User.findOne({ emailId: emailId.toLowerCase() });
+    if (userExists) {
+      res.status(400).json({ message: 'A user with this email already exists' });
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordToHash = password || 'OyciStaff123!';
+    const hashedPassword = await bcrypt.hash(passwordToHash, salt);
+
+    const validSkills = ['Drama', 'ASC', 'Youth Work'];
+    const incomingSkills = (skills as string[]) || [];
+
+    const user = await User.create({
+      firstName,
+      lastName,
+      emailId: emailId.toLowerCase(),
+      password: hashedPassword,
+      phoneNumber,
+      gender,
+      role: 'user',
+      status: 'APPROVED',
+      
+      roleType: roleType || 'Youth Worker',
+      skills: incomingSkills.filter((s) => validSkills.includes(s)),
+      specificAvailability: specificAvailability || [],
+      holidayDates: holidayDates || [],
+      willingToVolunteer: Boolean(willingToVolunteer),
+      employmentType: employmentType || undefined,
+      fixedSalary: fixedSalary || undefined,
+      hourlyRate: hourlyRate || undefined
+    });
+
+    res.status(201).json({
+      _id: user._id,
+      emailId: user.emailId,
+      firstName: user.firstName,
+      status: user.status
+    });
+  } catch (error: any) {
+    res.status(400).json({ message: error.message || 'Failed to create staff user' });
   }
 };

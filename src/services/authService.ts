@@ -25,11 +25,11 @@ export interface AuthResponse {
   lastName: string;
   phoneNumber?: string;
   gender: string;
-  qualifications?: string[];
-  hoursPerWeek?: number;
+  roleType?: string;
+  skills?: string[];
+  specificAvailability?: any[];
+  holidayDates?: string[];
   status: string;
-  availableFrom?: string;
-  availableTo?: string;
   willingToVolunteer: boolean;
   role: string;
   token: string;
@@ -71,11 +71,11 @@ export const registerUser = async (payload: RegisterPayload): Promise<AuthRespon
     lastName: user.lastName,
     phoneNumber: user.phoneNumber,
     gender: user.gender,
-    qualifications: user.qualifications,
-    hoursPerWeek: user.hoursPerWeek,
+    roleType: user.roleType,
+    skills: user.skills,
+    specificAvailability: user.specificAvailability,
+    holidayDates: user.holidayDates,
     status: user.status,
-    availableFrom: user.availableFrom,
-    availableTo: user.availableTo,
     willingToVolunteer: user.willingToVolunteer,
     role: user.role,
     token: generateToken((user._id as unknown as string).toString()),
@@ -103,11 +103,11 @@ export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> =>
     lastName: user.lastName,
     phoneNumber: user.phoneNumber,
     gender: user.gender,
-    qualifications: user.qualifications,
-    hoursPerWeek: user.hoursPerWeek,
+    roleType: user.roleType,
+    skills: user.skills,
+    specificAvailability: user.specificAvailability,
+    holidayDates: user.holidayDates,
     status: user.status,
-    availableFrom: user.availableFrom,
-    availableTo: user.availableTo,
     willingToVolunteer: user.willingToVolunteer,
     role: user.role,
     token: generateToken((user._id as unknown as string).toString()),

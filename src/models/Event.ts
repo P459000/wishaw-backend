@@ -3,12 +3,16 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface IEvent extends Document {
   eventName: string;
   location: string;
-  hours: number;
-  personsNeeded: number;
-  qualifications: string[];
-  startDate: string;
-  endDate: string;
+  sessionType: 'General' | 'ASC' | 'Drama' | 'PIAW';
+  sessionTime: 'MORNING_TO_AFTERNOON' | 'AFTERNOON_TO_EVENING' | 'FULL_DAY';
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  requiredYouthWorkers: number;
+  requiredSessionSupport: number;
   assignedStaff: mongoose.Types.ObjectId[];
+  registeredFamilies: mongoose.Types.ObjectId[];
+  isManuallyCompleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -25,36 +29,44 @@ const eventSchema = new Schema<IEvent>(
       required: true,
       trim: true,
     },
-    hours: {
-      type: Number,
+    sessionType: {
+      type: String,
+      enum: ['General', 'ASC', 'Drama', 'PIAW'],
       required: true,
-      min: 1,
     },
-    personsNeeded: {
-      type: Number,
+    sessionTime: {
+      type: String,
+      enum: ['MORNING_TO_AFTERNOON', 'AFTERNOON_TO_EVENING', 'FULL_DAY'],
       required: true,
-      min: 1,
     },
-    qualifications: [
-      {
-        type: String,
-        enum: ['sportsactivity', 'yogatraining', 'volunteering', 'mentorship training'],
-      },
-    ],
-    startDate: {
+    date: {
       type: String,
       required: true,
     },
-    endDate: {
+    startTime: {
       type: String,
       required: true,
     },
-    assignedStaff: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: 'User',
-      },
-    ],
+    endTime: {
+      type: String,
+      required: true,
+    },
+    requiredYouthWorkers: {
+      type: Number,
+      required: true,
+      default: 2,
+    },
+    requiredSessionSupport: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
+    assignedStaff: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    registeredFamilies: [{ type: Schema.Types.ObjectId, ref: 'Student' }],
+    isManuallyCompleted: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

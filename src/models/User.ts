@@ -8,17 +8,27 @@ export interface IUser extends Document {
   phoneNumber?: string;
   gender: 'male' | 'female' | 'other';
   password: string;
-  qualifications?: string[];
-  hoursPerWeek?: number;
-  availableFrom?: string;
-  availableTo?: string;
+  roleType?: 'Youth Worker' | 'Session Support' | 'ASC Staff' | 'Drama Staff';
+  skills?: string[];
+  specificAvailability?: {
+    date: string; // YYYY-MM-DD
+    startTime?: string; // HH:mm
+    endTime?: string; // HH:mm
+    isWorking: boolean;
+  }[];
+  holidayDates?: string[];
   status: 'PENDING' | 'REJECTED' | 'APPROVED';
   willingToVolunteer: boolean;
   role: 'user' | 'admin';
+  employmentType?: 'salaried' | 'contractual';
+  fixedSalary?: number;
+  hourlyRate?: number;
   assignedEvents: mongoose.Types.ObjectId[];
   createdAt?: Date;
   updatedAt?: Date;
 }
+
+
 
 const userSchema: Schema = new mongoose.Schema(
   {
@@ -58,21 +68,24 @@ const userSchema: Schema = new mongoose.Schema(
       required: [true, 'Password is required'],
       minlength: [6, 'Password must be at least 6 characters'],
     },
-    qualifications: [{
+    roleType: {
       type: String,
-      enum: ['sportsactivity', 'yogatraining', 'volunteering', 'mentorship training'],
+      enum: ['Youth Worker', 'Session Support', 'ASC Staff', 'Drama Staff'],
+    },
+    skills: [{
+      type: String,
+      enum: ['Drama', 'ASC', 'Youth Work'],
     }],
-    hoursPerWeek: {
-      type: Number,
-      min: [0, 'Hours must be at least 0'],
-      max: [168, 'Hours cannot exceed 168 per week'],
-    },
-    availableFrom: {
-      type: String,
-    },
-    availableTo: {
-      type: String,
-    },
+    specificAvailability: [{
+      _id: false,
+      date: { type: String, required: true },
+      startTime: { type: String },
+      endTime: { type: String },
+      isWorking: { type: Boolean, required: true, default: false },
+    }],
+    holidayDates: [{
+      type: String, // format YYYY-MM-DD
+    }],
     status: {
       type: String,
       enum: ['PENDING', 'REJECTED', 'APPROVED'],
@@ -82,6 +95,20 @@ const userSchema: Schema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    employmentType: {
+      type: String,
+      enum: ['salaried', 'contractual'],
+    },
+    fixedSalary: {
+      type: Number,
+    },
+    hourlyRate: {
+      type: Number,
+    },
+    assignedEvents: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Event',
+    }],
     role: {
       type: String,
       enum: ['user', 'admin'],
