@@ -148,11 +148,17 @@ export const updateUserStatus = async (req: AuthRequest, res: Response): Promise
             date: e.date,
             startTime: e.startTime,
             endTime: e.endTime,
-          }))
+          })),
+          {
+            roleType: user.roleType,
+            skills: user.skills,
+            employmentType: user.employmentType,
+            fixedSalary: user.fixedSalary,
+            hourlyRate: user.hourlyRate,
+          }
         );
       } catch (emailErr) {
         console.error('[EmailService] Failed to send approval email:', emailErr);
-        // Intentionally does NOT block the response — user is still approved
       }
     }
 
@@ -287,6 +293,20 @@ export const createStaffUser = async (req: AuthRequest, res: Response): Promise<
       firstName: user.firstName,
       status: user.status
     });
+
+    // Fire welcome/onboarding email (non-blocking)
+    sendApprovalEmail(
+      user.emailId,
+      user.firstName,
+      [], // no events assigned yet at creation time
+      {
+        roleType: user.roleType,
+        skills: user.skills,
+        employmentType: user.employmentType,
+        fixedSalary: user.fixedSalary,
+        hourlyRate: user.hourlyRate,
+      }
+    ).catch((err: any) => console.error('[EmailService] Direct-create onboarding email failed:', err));
   } catch (error: any) {
     res.status(400).json({ message: error.message || 'Failed to create staff user' });
   }

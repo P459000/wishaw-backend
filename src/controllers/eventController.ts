@@ -2,7 +2,122 @@ import { Response } from 'express';
 import { AuthRequest } from '../middleware/authMiddleware';
 import Event from '../models/Event';
 import User from '../models/User';
-import { sendEventRegistrationConfirmation } from '../services/emailService';
+import { sendEventRegistrationConfirmation, sendStaffAssignmentEmail, sendStudentOnboardingEmail } from '../services/emailService';
+import Student from '../models/Student';
+
+// @desc    Admin onboards a student (by familyId string) to an event
+// @route   POST /api/events/:id/onboard
+// @access  Private/Admin
+export const onboardStudentToEvent = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { familyId } = req.body;
+    if (!familyId) {
+      res.status(400).json({ message: 'familyId is required' });
+      return;
+    }
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      res.status(404).json({ message: 'Event not found' });
+      return;
+    }
+    const alreadyOnboarded = (event.registeredFamilies as any[]).some(
+      (id: any) => id.toString() === familyId
+    );
+    if (alreadyOnboarded) {
+      res.status(400).json({ message: 'Student is already onboarded to this event.' });
+      return;
+    }
+    (event.registeredFamilies as any[]).push(familyId);
+    await event.save();
+
+    res.status(200).json({ message: 'Student onboarded successfully', event });
+
+    // Non-blocking: send onboarding emails to all guardians
+    Promise.all([
+      Student.findOne({ familyId }),
+      Event.findById(req.params.id).populate('assignedStaff', 'firstName lastName roleType phoneNumber emailId'),
+    ]).then(([student, populatedEvent]) => {
+      if (!student || !populatedEvent) return;
+
+      const childName = `${student.child.firstName} ${student.child.lastName}`;
+      const staffList = (populatedEvent.assignedStaff as any[]) || [];
+
+      const staffPayload = staffList.map((s: any) => ({
+        firstName: s.firstName,
+        lastName: s.lastName,
+        roleType: s.roleType,
+        phoneNumber: s.phoneNumber,
+        emailId: s.emailId,
+      }));
+
+      const basePayload = {
+        childName,
+        familyId: student.familyId,
+        eventName: populatedEvent.eventName,
+        location: populatedEvent.location,
+        sessionType: populatedEvent.sessionType,
+        sessionTime: populatedEvent.sessionTime,
+        date: populatedEvent.date,
+        startTime: populatedEvent.startTime,
+        endTime: populatedEvent.endTime,
+        assignedStaff: staffPayload,
+      };
+
+      // Collect all guardians with emails
+      const recipients = [
+        { name: student.primaryGuardian.name, email: student.primaryGuardian.email, relationship: student.primaryGuardian.relationshipToChild },
+        ...(student.additionalGuardians || [])
+          .filter((g: any) => g.email)
+          .map((g: any) => ({ name: g.name, email: g.email, relationship: g.relationshipToChild })),
+      ].filter(r => r.email);
+
+      recipients.forEach(recipient => {
+        sendStudentOnboardingEmail({
+          ...basePayload,
+          guardianName: recipient.name,
+          guardianEmail: recipient.email!,
+          relationship: recipient.relationship,
+        }).catch(err => {
+          console.error(`[EventController] Onboarding email failed for ${recipient.email}:`, err.message);
+        });
+      });
+    }).catch(err => {
+      console.error('[EventController] Failed to send onboarding emails:', err.message);
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Failed to onboard student' });
+  }
+};
+
+// @desc    Admin removes a student (by familyId string) from an event
+// @route   DELETE /api/events/:id/onboard
+// @access  Private/Admin
+export const removeStudentFromEvent = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { familyId } = req.body;
+    if (!familyId) {
+      res.status(400).json({ message: 'familyId is required' });
+      return;
+    }
+    const event = await Event.findById(req.params.id);
+    if (!event) {
+      res.status(404).json({ message: 'Event not found' });
+      return;
+    }
+    const idx = (event.registeredFamilies as any[]).findIndex(
+      (id: any) => id.toString() === familyId
+    );
+    if (idx === -1) {
+      res.status(400).json({ message: 'Student is not onboarded to this event.' });
+      return;
+    }
+    event.registeredFamilies.splice(idx, 1);
+    await event.save();
+    res.status(200).json({ message: 'Student removed from event', event });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message || 'Failed to remove student' });
+  }
+};
 
 // @desc    Create a new event
 // @route   POST /api/events
@@ -53,9 +168,9 @@ export const getEvents = async (req: AuthRequest, res: Response): Promise<void> 
 // @access  Private/Family
 export const getFamilyEvents = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // Return future events (date >= today), newest first
-    const today = new Date().toISOString().split('T')[0];
-    const events = await Event.find({ date: { $gte: today } }).sort({ date: 1 });
+    const events = await Event.find({})
+      .populate('assignedStaff', 'firstName lastName roleType phoneNumber emailId')
+      .sort({ date: 1 });
     res.status(200).json(events);
   } catch (error: any) {
     res.status(500).json({ message: 'Failed to fetch events' });
@@ -188,6 +303,31 @@ export const assignStaffToEvent = async (req: AuthRequest, res: Response): Promi
     await event.save();
 
     res.status(200).json({ message: 'Staff successfully assigned to event', event });
+
+    // Non-blocking: send assignment emails to newly added staff only
+    if (addedStaff.length > 0) {
+      User.find({ _id: { $in: addedStaff } }, 'firstName lastName emailId').then(staffMembers => {
+        staffMembers.forEach(staff => {
+          if (!staff.emailId) return;
+          sendStaffAssignmentEmail({
+            staffFirstName: staff.firstName,
+            staffLastName: staff.lastName,
+            staffEmail: staff.emailId,
+            eventName: event.eventName,
+            location: event.location,
+            sessionType: event.sessionType,
+            sessionTime: event.sessionTime,
+            date: event.date,
+            startTime: event.startTime,
+            endTime: event.endTime,
+          }).catch(err => {
+            console.error(`[EventController] Failed to send assignment email to ${staff.emailId}:`, err.message);
+          });
+        });
+      }).catch(err => {
+        console.error('[EventController] Failed to fetch newly assigned staff for emails:', err.message);
+      });
+    }
   } catch (error: any) {
     res.status(500).json({ message: error.message || 'Failed to assign staff to event' });
   }

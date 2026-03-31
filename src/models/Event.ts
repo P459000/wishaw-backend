@@ -11,7 +11,7 @@ export interface IEvent extends Document {
   requiredYouthWorkers: number;
   requiredSessionSupport: number;
   assignedStaff: mongoose.Types.ObjectId[];
-  registeredFamilies: mongoose.Types.ObjectId[];
+  registeredFamilies: string[]; // stores familyId strings e.g. FAM-00002
   isManuallyCompleted?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
@@ -62,7 +62,7 @@ const eventSchema = new Schema<IEvent>(
       default: 0,
     },
     assignedStaff: [{ type: Schema.Types.ObjectId, ref: 'User' }],
-    registeredFamilies: [{ type: Schema.Types.ObjectId, ref: 'Student' }],
+    registeredFamilies: [{ type: String }],
     isManuallyCompleted: {
       type: Boolean,
       default: false,

@@ -6,6 +6,8 @@ import authRoutes from './routes/authRoutes';
 import userRoutes from './routes/userRoutes';
 import eventRoutes from './routes/eventRoutes';
 import studentRoutes from './routes/studentRoutes';
+import payrollRoutes from './routes/payrollRoutes';
+import attendanceRoutes from './routes/attendanceRoutes';
 
 dotenv.config();
 
@@ -26,6 +28,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/students', studentRoutes);
+app.use('/api/payroll', payrollRoutes);
+app.use('/api/attendance', attendanceRoutes);
 
 // Basic error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

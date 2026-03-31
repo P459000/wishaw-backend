@@ -7,7 +7,9 @@ import {
   unregisterFamilyFromEvent,
   assignStaffToEvent,
   updateEvent,
-  deleteEvent
+  deleteEvent,
+  onboardStudentToEvent,
+  removeStudentFromEvent,
 } from '../controllers/eventController';
 import { protect, admin, protectFamily } from '../middleware/authMiddleware';
 
@@ -21,6 +23,10 @@ router.route('/')
 router.patch('/:id/staff', protect, admin, assignStaffToEvent);
 router.put('/:id', protect, admin, updateEvent);
 router.delete('/:id', protect, admin, deleteEvent);
+
+// Admin onboard student routes
+router.post('/:id/onboard', protect, admin, onboardStudentToEvent);
+router.delete('/:id/onboard', protect, admin, removeStudentFromEvent);
 
 // Family routes
 router.get('/family', protectFamily, getFamilyEvents);
